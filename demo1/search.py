@@ -3,14 +3,13 @@
 
 """
 import os
-import sys
 
 from dotenv import load_dotenv
 
 
-load_dotenv()
+load_dotenv() # 必须在os.getenv之前不然会拿到None,header变成"Bearer None" 状态码reps.status_code为401
 import requests
-import json
+
 
 def load_text(path):
     with open(path, "r",encoding="utf-8") as f:
@@ -24,11 +23,51 @@ def split_text(text,size):
     return chunks
 
 def batch_split(text_list,batch_size):
+    """
+    把文本按固定长度切成若干段
+    :return: 返回一个列表
+    """
     batchs = []
     for i in range (0, len(text_list), batch_size):
         batch = text_list[i:i+batch_size]
         batchs.append(batch)
     return batchs
+
+
+def embed(texts):
+    """
+    将文本列表转换成向量列表
+    """
+    DASHSCOPE_API_KEY = os.getenv("DASHSCOPE_API_KEY") # 没加载 "Bearer None" 报401
+
+    batchs = batch_split(texts, 10)
+    # 这里的batch_size设置为10 是因为text-embedding-v4这个模型最多一次性只能处理十条数据,超过10条的数据通过batch_split切分
+
+    all_vecs = []
+
+    for batch in batchs:
+
+        url = "https://dashscope.aliyuncs.com/compatible-mode/v1/embeddings"
+
+        headers = {
+            "Authorization": f"Bearer {DASHSCOPE_API_KEY}",
+            "Content-Type": "application/json",
+        }
+
+        payload = {
+            "model": "text-embedding-v4", # 单次最多处理十条数据
+            "input": batch,
+            "dimensions": 1024,
+            "encoding_format": "float"
+        }
+        reps = requests.post(url, headers=headers, json=payload)
+        print(reps.status_code)
+
+        for i in range(0, len(reps.json()["data"])):
+            all_vecs.append(reps.json()["data"][i]["embedding"])
+             # 用append按批顺序,不嵌套,保证all_vecs[i]对应texts[i]
+
+    return all_vecs
 # -----------------主程序----------------------------------
 
 text = load_text("data.txt")
@@ -52,33 +91,20 @@ for chunk in chunks:
 # size=300 → 气、 / 过后
 # size=500 → 色差
 
-DASHSCOPE_API_KEY = os.getenv("DASHSCOPE_API_KEY")
-input_data = ("你好", "再见", "hello", "goodbye", "今天天气真好", "我喜欢吃苹果", "我不喜欢唱歌", "这个列表是这样子创建的吗?","python是这个世界上最好的语言", "我喜欢打游戏", "敲代码让人困扰")
+if __name__ == "__main__":
+    # 将数据传入到embed,经过text-embedding-v4的处理,返回向量,每次最多处理10条数据,超过10条的数据通过batch_split分批处理,最后通过all_vecs收集每个数据的向量,每个向量的维度都是1024
+    texts1 = ("你好", "再见", "hello", "goodbye", "今天天气真好", "我喜欢吃苹果", "我不喜欢唱歌",
+                      "这个列表是这样子创建的吗?", "python是这个世界上最好的语言", "我喜欢打游戏", "敲代码让人困扰")
+
+    test1 = embed(texts1)
+    print(len(test1))  #总共有多少个数据就有多少个向量
+    print(len(test1[0])) #第一个数据的向量维度
 
 
-batchs = batch_split(input_data,10)
+    text2 = ("你好","再见","拜拜")
+    test2 = embed(text2)
+    print(len(test2))
+    print(len(test2[0]))
 
-all_vecs = []
-
-for batch in batchs:
-
-    url = "https://dashscope.aliyuncs.com/compatible-mode/v1/embeddings"
-
-    headers = {
-        "Authorization": f"Bearer {DASHSCOPE_API_KEY}",
-        "Content-Type": "application/json",
-    }
-
-    payload = {
-        "model":"text-embedding-v4",
-        "input":batch,
-        "dimensions":1024,
-        "embedding-fomat":"float"
-    }
-    reps=requests.post(url,headers=headers,json=payload)
-    print(reps.status_code)
-    for i in range(0,len(reps.json()["data"])):
-        all_vecs.append(reps.json()["data"][i]["embedding"])
-print(len(all_vecs))
-
-
+    test3 = embed(()) # 传空列表不报错 生成一个空列表
+    print(len(test3)) # 长度为0

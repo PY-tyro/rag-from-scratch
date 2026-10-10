@@ -68,6 +68,21 @@ def embed(texts):
              # 用append按批顺序,不嵌套,保证all_vecs[i]对应texts[i]
 
     return all_vecs
+
+def dot(a,b):
+    total = 0
+    for i in range(0,len(a)):
+        total += a[i] * b[i]
+    return total
+
+def norm(a):
+    s = 0
+    for i in range(0,len(a)):
+        s += a[i] ** 2
+    return s ** 0.5
+
+def cosine(a,b):
+    return dot(a, b) / (norm(a) * norm(b))
 # -----------------主程序----------------------------------
 
 text = load_text("data.txt")
@@ -108,3 +123,21 @@ if __name__ == "__main__":
 
     test3 = embed(()) # 传空列表不报错 生成一个空列表
     print(len(test3)) # 长度为0
+
+    print(dot([3, 1, 2], [4, 1, 5]))
+    # print(dot([1, 1, 100], [1, 1]))
+    # 预测 2
+    # 实测 报错 IndexError: list index out of range
+    print(norm([3, 1, 2]))
+    print(norm([4, 1, 5]))
+
+    S = dot([1, 1], [1, 1])
+    T = norm([1, 1]) ** 2
+    print(S == T)
+    print(S - T)
+
+    print(cosine([1, 1, 1], [1, 1, 1]))
+
+    v = embed(["你好"])[0]
+    print(len(v))
+    print(cosine(v,v))
